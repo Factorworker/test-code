@@ -1,0 +1,122 @@
+Talk is cheap. Show me the code.
+1. 用 golang 寫一爬蟲抓如下 URL。
+https://jsonplaceholder.typicode.com/posts/1/comments
+https://jsonplaceholder.typicode.com/posts/2/comments
+...
+https://jsonplaceholder.typicode.com/posts/100/comments
+每頁共五筆資料項，抓 100 個 URL，總共 500 筆資料。把裡面的
+500 個 email 存檔起來。在代碼中給出完成時間越快越好。
+必須考慮高併發，非同步。
+
+
+solution：
+package main
+
+import (
+    "fmt"
+    "os"
+    "sync"
+
+    "github.com/gocolly/colly"
+)
+
+func main() {
+    // Create a new collector
+    c := colly.NewCollector()
+
+    // Create a channel to store emails
+    emails := make(chan string, 100)
+
+    // Create a wait group to wait for all goroutines to finish
+    var wg sync.WaitGroup
+
+    // Visit each URL and extract emails
+    for i := 1; i <= 100; i++ {
+        url := fmt.Sprintf("https://jsonplaceholder.typicode.com/posts/%d/comments", i)
+        wg.Add(1)
+        go func(url string) {
+            defer wg.Done()
+            c.Visit(url)
+        }(url)
+    }
+
+    // Extract emails from each page
+    c.OnHTML("a[href]", func(e *colly.HTMLElement) {
+        email := e.Attr("href")
+        if email != "" && len(email) > 7 && email[:7] == "mailto:" {
+            emails <- email[7:]
+        }
+    })
+
+    // Wait for all goroutines to finish
+    go func() {
+        wg.Wait()
+        close(emails)
+    }()
+
+    // Write emails to file
+    f, err := os.Create("emails.txt")
+    if err != nil {
+        panic(err)
+    }
+    defer f.Close()
+
+    for email := range emails {
+        fmt.Fprintln(f, email)
+    }
+}
+
+
+
+2. 有一 protobuf 格式如下，試著用 python 按照格式，隨意添加一筆
+資料後，寫入 binary 檔，後再讀取出來。
+1. syntax = "proto2";
+2.
+3. package tutorial;
+4.
+5. message Person {
+6. optional string name = 1;
+7. optional int32 id = 2;
+8. optional string email = 3;
+9.
+10. enum PhoneType {
+11. MOBILE = 0;
+12. HOME = 1;
+13. WORK = 2;
+14. }
+15.
+16. message PhoneNumber {
+17. optional string number = 1;
+18. optional PhoneType type = 2 [default = HOME];
+19. }
+20.
+21. repeated PhoneNumber phones = 4;
+22.}
+23.
+24.message AddressBook {
+25. repeated Person people = 1;
+26.}
+
+
+
+solution：
+
+import addressbook_pb2
+
+person = addressbook_pb2.Person()
+person.name = "John Doe"
+person.id = 1234
+person.email = "jdoe@example.com"
+
+phone_number = person.phones.add()
+phone_number.number = "555-4321"
+phone_number.type = addressbook_pb2.Person.HOME
+
+with open("addressbook.bin", "wb") as f:
+    f.write(person.SerializeToString())
+
+with open("addressbook.bin", "rb") as f:
+    address_book = addressbook_pb2.AddressBook()
+    address_book.ParseFromString(f.read())
+
+print(address_book)
